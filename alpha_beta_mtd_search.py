@@ -15,7 +15,6 @@ nodes_skipped = 0
 total_depth = 4
 position_dict = {}  # lowerbound, upperbound, move, depth, exact; LOWERBOUND, UPPERBOUND (0, 1)
 
-# def add finisher
 
 def get_function_for_board_eval(board: Board, model):
     def funkc(move):
@@ -132,7 +131,7 @@ def mtdf(f, d, board, nn_model):
     move = None
 
     moves = list(board.legal_moves)
-    moves = sorted(moves, key=get_function_for_board_eval(board, model),
+    moves = sorted(moves, key=get_function_for_board_eval(board, nn_model),
                    reverse=board.turn)
     moves = deque(moves)
 
@@ -164,7 +163,6 @@ def get_next_move(board, model, depth):
         moves.append(m)
         print(firstguess, m)
 
-    #firstguess, move = mtdf(firstguess, 4, board, model)
     move = m
 
     prev_move = None
@@ -172,7 +170,6 @@ def get_next_move(board, model, depth):
     move_orders = [new_move]
     while True:
         if not board_copy.is_legal(new_move):  # to znaci da je vraceni potez onaj na samom kraju
-            # msm da se da ispraviti ali ne u 3 ujutro kad je ovo kucano :)
             break
 
         board_copy.push(new_move)
@@ -195,69 +192,3 @@ def get_next_move(board, model, depth):
     print(f"Solve time: {end - start}")
     print(f"Nodes total: {nodes_total}")
 
-
-if __name__ == '__main__':
-    #model = load_model("working_model/model_chess_ai.json",
-    #                    "working_model/model_chess_ai.h5")
-
-    # json_file = open('working_model/model_chess_ai.json', 'r')
-    # loaded_model_json = json_file.read()
-    # json_file.close()
-    # loaded_model = model_from_json(loaded_model_json)
-    # loaded_model.load_weights("working_model/model_chess_ai.h5")
-    # model = loaded_model
-    import os
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
-    model = mlflow.keras.load_model("runs:/15ff8fdc93cd44d888ca4069d4dc73e9/model")
-    model.summary()
-
-    # features = get_board_state(Board("rnbqkbnr/ppp2ppp/8/3Bp3/8/6P1/PPPPPP1P/RNBQK1NR b KQkq - 0 3"))
-    #
-    # lmodel = LiteModel.from_keras_model(model)
-    # start = time.time()
-    # pred = lmodel.predict_single(features)
-    # end = time.time()
-    # print("Pred: " + str(pred))
-    # print(f"Convert time: {end - start}")
-    #
-    # quit()
-
-    # fen = sys.argv[1]
-    # depth = int(sys.argv[2]) if len(sys.argv) >= 3 else None # if depth is passed as argument, else its default (4)
-
-    #features = get_board_state(Board("rn1qkbnr/ppp2ppp/4b3/3pp3/8/5NP1/PPPPPP1P/RNBQK2R w KQkq - 2 5"))
-    # features_reshaped = tf.reshape(features, [1, 768])
-    #lmodel = LiteModel.from_keras_model(model)
-    # start_1 = time.time()
-    #pred_1 = lmodel.predict_single(features)
-    # end_1 = time.time()
-    #print("Pred: " + str(pred_1))
-    # print(f"Convert time: {end_1 - start_1}")
-    #
-    # start = time.time()
-    # pred = model(features_reshaped)
-    # end = time.time()
-    # print("Pred: " + str(pred))
-    # print(f"Convert time: {end - start}")
-    #quit()
-
-    model = LiteModel.from_keras_model(model)
-    # while True:
-    #     print("\nInput fen: ")
-    #     input_fen = input()
-    #     features = get_board_state(Board(input_fen))
-    #     pred_1 = model.predict_single(features)
-    #     print("Pred: " + str(pred_1))
-    # quit()
-
-    while True:
-        print("\nInput fen: ")
-        input_fen = input()
-        starting_board = Board(input_fen)
-        get_next_move(starting_board, model, 5)
-        position_dict.clear()
-
-    # todo videti ono da ne bude dodela liste kod uslova sa alfa beta, vec vrednosti na indeksu liste, mozda bude brze
-    # todo potencijalno dodati tamo gore uslov elif d == 0 i exact vrednost da se cuva u recniku

@@ -1,5 +1,5 @@
 import random
-
+import tensorflow as tf
 from chess import Board, pgn
 import math
 import time
@@ -134,7 +134,7 @@ def initiate_alpha_beta_pruning(board, model, depth=None):
     search_depth = depth if depth is not None else total_depth
 
     pruning_res = alpha_beta_pruning(board, search_depth - 3, -math.inf, math.inf, board.turn, model, moves)
-    print(pruning_res)
+    # print(pruning_res)
     pruning_res = alpha_beta_pruning(board, search_depth - 1, -math.inf, math.inf, board.turn, model, moves)
 
     return pruning_res[0], pruning_res[1]
@@ -142,6 +142,7 @@ def initiate_alpha_beta_pruning(board, model, depth=None):
 
 def get_next_move(board, model, depth):
     global nodes_total, nodes_skipped, total_depth, position_dict, tt_hits
+    position_dict.clear()
     print("\nStarted calculating")
     start = time.time()
     alpha_beta_res = initiate_alpha_beta_pruning(board, model, depth)
@@ -152,6 +153,24 @@ def get_next_move(board, model, depth):
     print("Move (UCI format): " + alpha_beta_res[1].uci())
     print(f"Solve time: {end - start}")
     print(f"Nodes total: {nodes_total}, nodes skipped (at least): {nodes_skipped}")
+    position_dict.clear()
+    return end - start, alpha_beta_res[1]
+
+
+def get_next_move_user_info(board, model, depth):
+    global nodes_total, nodes_skipped, total_depth, position_dict, tt_hits
+    position_dict.clear()
+    print("\nStarted calculating")
+    start = time.time()
+    alpha_beta_res = initiate_alpha_beta_pruning(board, model, depth)
+    end = time.time()
+    print(f"Positions calculated: {len(position_dict)}")
+    print(f"Repeating positions (transpositions): {tt_hits}")
+    print("Best move found (UCI format): " + alpha_beta_res[1].uci())
+    print(f"Move heuristics: {alpha_beta_res[0]}")
+    print(f"Solve time: {end - start}")
+    print(f"Positions in search tree (total): {nodes_total}, positions skipped (at least): {nodes_skipped}")
+    position_dict.clear()
     return end - start, alpha_beta_res[1]
 
 
@@ -201,56 +220,10 @@ def duel(model1, model2):
 
 
 if __name__ == '__main__':
-    # import os
-    #
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-    orig_model = mlflow.keras.load_model("runs:/15ff8fdc93cd44d888ca4069d4dc73e9/model")
-    orig_model.summary()
-    # orig_model = mlflow.keras.load_model("runs:/95630a707a764c89ab677679eb41ced2/logged_model")
-    # orig_model.summary()
+    loaded_m = tf.keras.models.load_model("nn_model")
+    loaded_m.summary()
 
-    # features = get_board_state(Board("rnbqkbnr/ppp2ppp/8/3Bp3/8/6P1/PPPPPP1P/RNBQK1NR b KQkq - 0 3"))
-    #
-    # lmodel = LiteModel.from_keras_model(orig_model)
-    # start = time.time()
-    # pred = lmodel.predict_single(features)
-    # end = time.time()
-    # print("Pred: " + str(pred))
-    # print(f"Convert time: {end - start}")
-    #
-    # quit()
-
-    # fen = sys.argv[1]
-    # depth = int(sys.argv[2]) if len(sys.argv) >= 3 else None # if depth is passed as argument, else its default (4)
-
-    # features = get_board_state(Board("rn1qkbnr/ppp2ppp/4b3/3pp3/8/5NP1/PPPPPP1P/RNBQK2R w KQkq - 2 5"))
-    # features_reshaped = tf.reshape(features, [1, 768])
-    # lmodel = LiteModel.from_keras_model(model)
-    # start_1 = time.time()
-    # pred_1 = lmodel.predict_single(features)
-    # end_1 = time.time()
-    # print("Pred: " + str(pred_1))
-    # print(f"Convert time: {end_1 - start_1}")
-    #
-    # start = time.time()
-    # pred = model(features_reshaped)
-    # end = time.time()
-    # print("Pred: " + str(pred))
-    # print(f"Convert time: {end - start}")
-    # quit()
-
-    lmodel = LiteModel.from_keras_model(orig_model)
-
-    # while True:
-    #     print("\nInput fen: ")
-    #     input_fen = input()
-    #     features = get_board_state(Board(input_fen))
-    #     pred_1 = model.predict_single(features)
-    #     print("Pred: " + str(pred_1))
-    # quit()
-
-    # duel("runs:/15ff8fdc93cd44d888ca4069d4dc73e9/model", "runs:/ebd176887d9d4a8f9d461651069602fd/model")
-
+    lmodel = LiteModel.from_keras_model(loaded_m)
     calc_time = 0
     total_moves = 0
 
@@ -262,19 +235,10 @@ if __name__ == '__main__':
         if input_fen == "x":
             break
         starting_board = Board(input_fen)
-        time_to_move = get_next_move(starting_board, lmodel, 6)
+        time_to_move = get_next_move(starting_board, lmodel, 5)
         position_dict.clear()
         calc_time += time_to_move[0]
         total_moves += 1
 
     print("Average time: " + str(calc_time/total_moves))
     print("Total moves: " + str(total_moves))
-    #
-    # # fen = sys.argv[1]
-    # # depth = int(sys.argv[2]) if len(sys.argv) >= 3 else None # if depth is passed as argument, else its default (4)
-    #
-    # fen = "rnbqkbnr/pp4pp/2p2p2/3pN3/4p3/2N5/PPPPPPPP/R1BQKB1R w KQkq - 0 6"
-    # depth = 5
-    #
-    # starting_board = Board(fen)
-    # get_next_move(starting_board, model, depth)

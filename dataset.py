@@ -11,42 +11,6 @@ import csv
 
 
 def cut_value_and_normalize(batch):
-    # I nacin
-    # if evaluation_val > 25:
-    #     evaluation_val = 25 + math.log2(evaluation_val) - math.log2(25)
-    # elif evaluation_val < -25:
-    #     evaluation_val = -25 - math.log2(-evaluation_val) + math.log2(25)
-    # return tf.constant(float(yic))
-
-
-    # II nacin
-    # if evaluation_val > 10:
-    #     evaluation_val = 6 + math.log10(evaluation_val) * 4  # u 10 ce da bude 10 kao zbog neprekidnosti, pa onda log
-    # elif evaluation_val < -10:
-    #     evaluation_val = -6 - math.log10(-evaluation_val) * 4
-
-    # max vrednost nakon logaritmovanja ce biti 14.75 (to je za 154 a max je 152.65 al dovoljno blizu kontam)
-    # evaluation_val = 2 * (evaluation_val + 14.75) / (14.75 + 14.75) - 1
-
-    # III nacin ALI NE RADI OVO JE DEBILNO - ideja okej al izmeni
-    # if evaluation_val > 0:
-    #     evaluation_val = math.log2(evaluation_val + 0.005) + 2
-    # elif evaluation_val < 0:
-    #     evaluation_val = -math.log2(-evaluation_val + 0.005) - 2
-    # else:
-    #     return tf.constant(float(0))
-    #
-    # evaluation_val = 2 * (evaluation_val + 4.5) / (4.5 + 4.5) - 1
-
-    # if evaluation_val > 5:
-    #     evaluation_val = 4.3 + math.log10(evaluation_val)
-    # elif evaluation_val < -5:
-    #     evaluation_val = -4.3 - math.log10(-evaluation_val)
-    #
-    # evaluation_val = 2 * (evaluation_val + 6.48) / (6.48 + 6.48) - 1
-    # return tf.constant(float(evaluation_val))
-
-    # IV NACIN - decent
     batch_evals = []
     for evaluation_val in batch:
         if evaluation_val > 5:
@@ -58,39 +22,9 @@ def cut_value_and_normalize(batch):
         batch_evals.append(evaluation_val)
     return np.asarray(batch_evals, dtype=np.float32)
 
-    # V NACIN
-    # batch_evals = []
-    # for evaluation_val in batch:
-    #     if evaluation_val > 10:
-    #         evaluation_val = 9 + math.log10(evaluation_val)
-    #     elif evaluation_val < -10:
-    #         evaluation_val = -9 - math.log10(-evaluation_val)
-    #
-    #     evaluation_val = 2 * (evaluation_val + 11.2) / (11.2 + 11.2) - 1
-    #     batch_evals.append(evaluation_val)
-    # return np.asarray(batch_evals, dtype=np.float32)
-
-    # VI NACIN
-    # batch_evals = []
-    # for evaluation_val in batch:
-    #     if evaluation_val > 18:
-    #         evaluation_val = 16.8 + math.log10(evaluation_val)
-    #     elif evaluation_val < -10:
-    #         evaluation_val = -16.8 - math.log10(-evaluation_val)
-    #
-    #     batch_evals.append(evaluation_val)
-    # return np.asarray(batch_evals, dtype=np.float32)
-
 
 def standardize_eval(eval_value):
     yic = eval_value
-
-    # if yic > 25:
-    #     yic = math.log2(yic) * 10 - 21
-    # elif yic < -25:
-    #     yic = 21 - math.log2(-yic) * 10
-
-    # yic = 2 * (yic + 20) / (20 + 20) - 1  # normalize between -1 and 1
 
     mean = 0.5439183057819399
     std = 9.861819123496254
@@ -562,7 +496,6 @@ def get_dataset_sql(dataset_path="/home/igor/Documents/Chess_bot/Datasets/test.d
 
 
 def get_dataset_csv(bs=256):
-    #dataset_path = "/home/igor/Documents/Chess_bot/Datasets/test.db",
     """
     Dataset creation
     """
@@ -623,7 +556,7 @@ def get_dataset_for_rl_csv(bs=1):
         batch_size=bs,
         num_epochs=1,
         shuffle=True,
-        shuffle_buffer_size=30000000,
+        shuffle_buffer_size=30000,
         sloppy=True,
         select_columns=['FEN', 'EVAL'],
         label_name='EVAL'

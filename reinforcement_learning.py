@@ -1,9 +1,6 @@
 import tensorflow as tf
 from loguru import logger
-
 from dataset import get_dataset_for_rl_csv
-# from alpha_beta_mtd_search_rl import get_next_move
-# from alpha_beta_search_rl import get_next_move
 from alpha_beta_search_tt_rl import get_next_move, get_function_for_board_eval
 import random
 import chess
@@ -52,23 +49,12 @@ def td_alpha_full(model_orig, model_lite, alpha=1.0, lambda_in_sum=0.7,
                         if board.is_game_over():
                             break
 
-
-                # treba da ima m predikcija,
-                #   i za svaku nam treba njen gradijent
+                # there should be m predictions, and we need the gradient for each one
                 gradients = [tape.gradient(mod_pred, model_orig.trainable_weights)
                              for mod_pred in predictions]
 
                 for i in range(len(model_orig.trainable_weights)):
                     delta_weight = 0
-                    # for t in range(len(predictions)-1):
-                    #     inner_sum = 0
-                    #     for k in range(t, len(predictions)-1):
-                    #         inner_sum += (
-                    #             (predictions[k+1] - predictions[k])
-                    #             * math.pow(lambda_in_sum, k-t+1)
-                    #             * gradients[k][i]
-                    #         )
-                    #     delta_weight += alpha*inner_sum
                     for t in range(len(predictions)-1):
                         inner_sum = alpha*(predictions[t+1] - predictions[t])
                         grad_sum = 0
@@ -77,7 +63,6 @@ def td_alpha_full(model_orig, model_lite, alpha=1.0, lambda_in_sum=0.7,
 
                         delta_weight += inner_sum*grad_sum
 
-                    # delta_weight = -delta_weight
                     delta_weight = delta_weight/num_of_moves_search
 
                     # Select the layer
@@ -92,7 +77,7 @@ def td_alpha_full(model_orig, model_lite, alpha=1.0, lambda_in_sum=0.7,
                 pred = model_orig(tf.reshape(features, [1, len(features)]))
                 print("+Pred check: " + str(pred))
 
-                if el_index != 0 and el_index % 32 == 0:
+                if el_index != 0 and el_index % 32 == 0:  # model is saved every 32 positions
                     logger.info("Model saved")
                     res = model_orig.evaluate(dataset_val)
                     print("test loss, test acc:", res)
@@ -103,15 +88,10 @@ def td_alpha_full(model_orig, model_lite, alpha=1.0, lambda_in_sum=0.7,
 
 
 if __name__ == "__main__":
-    # model_id = "15ff8fdc93cd44d888ca4069d4dc73e9"
-    # model_mlflow = mlflow.keras.load_model("runs:/" + model_id + "/model")
-    # 18f8e3c252a94d9a895924cdb04e0a0a
-    model_id = "15ff8fdc93cd44d888ca4069d4dc73e9"
-    model_mlflow = mlflow.keras.load_model("runs:/" + model_id + "/model")
-    # model_id = "18f8e3c252a94d9a895924cdb04e0a0a"
-    # model_mlflow = mlflow.keras.load_model("runs:/" + model_id + "/logged_model")
-    model_mlflow.summary()
-    lmodel = LiteModel.from_keras_model(model_mlflow)
+    loaded_m = tf.keras.models.load_model("nn_model")
+    loaded_m.summary()
+
+    lmodel = LiteModel.from_keras_model(loaded_m)
 
     steps = 2
     num_of_moves = 6
@@ -122,13 +102,11 @@ if __name__ == "__main__":
     a = 0.00001
 
     with mlflow.start_run():
-        td_alpha_full(model_mlflow, lmodel, iterations=steps, num_start_pos=num_of_start_pos, depth=search_depth,
+        td_alpha_full(loaded_m, lmodel, iterations=steps, num_start_pos=num_of_start_pos, depth=search_depth,
                       num_of_moves_search=num_of_moves, alpha=a, lambda_in_sum=lam)
 
-        mlflow.keras.log_model(model_mlflow, "logged_model")
-        # todo pazi, ova prethodna verzija je mozda fals nije bas dobro radio position dict
-        log_text("Reinforcement learning. From model:\n" +
-                 model_id + " for 6 steps.",
+        mlflow.keras.log_model(loaded_m, "logged_model")
+        log_text("Reinforcement learning. For " + str(steps) + " steps.",
                  "note.txt")
         log_param("steps", steps)
         log_param("alpha", a)
@@ -137,8 +115,3 @@ if __name__ == "__main__":
         log_param("search_depth", search_depth)
 
     logger.info("Finished training")
-
-# todo - ubrzati alfa beta pruning
-#           - todo probaj mozda da uradis rangiranje po najboljem potezu
-#           - todo ne mora ni rangiranje svih, mozda samo naci najbolji potez
-# todo - probaj da stavis nesto osim SGD za RL

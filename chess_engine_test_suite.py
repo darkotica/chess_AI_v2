@@ -5,7 +5,7 @@ import csv
 from chess import Board
 
 
-def test_model_arasan(model_path):
+def test_model_arasan(model_path, test_suite_epd):
     print("\n\n")
     print("Model: " + model_path)
     orig_model = mlflow.keras.load_model(model_path)
@@ -14,7 +14,7 @@ def test_model_arasan(model_path):
 
     counter = 0
 
-    with open('/home/igor/Documents/Chess_bot/test_suites/arasan_test_suite.epd', newline='') as csvfile:
+    with open(test_suite_epd, newline='') as csvfile:
         spamreader = csv.reader(csvfile, delimiter=';')
         i = 1
         for row in spamreader:
@@ -39,11 +39,4 @@ def test_model_arasan(model_path):
 
     print("Counter: " + str(counter))
 
-
-# rl 4095 2048 2048
-# test_model_arasan("runs:/207731ac18d645cb9bc4a4564b717028/logged_model")
-# rl 4000 1300 1000
-test_model_arasan("runs:/8526f722c5624b979db3d8b15bbc5811/logged_model")
-# no rl 4000, 1300, 1000
-test_model_arasan("runs:/ebd176887d9d4a8f9d461651069602fd/logged_model")
 
