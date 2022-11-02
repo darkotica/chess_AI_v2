@@ -1,3 +1,5 @@
+import random
+
 from chess import Board, pgn
 import math
 import time
@@ -260,7 +262,7 @@ if __name__ == '__main__':
         if input_fen == "x":
             break
         starting_board = Board(input_fen)
-        time_to_move = get_next_move(starting_board, lmodel, 5)
+        time_to_move = get_next_move(starting_board, lmodel, 6)
         position_dict.clear()
         calc_time += time_to_move[0]
         total_moves += 1

@@ -2,10 +2,25 @@ import chess
 from chess import *
 
 
-def get_board_to_list(board: Board):
+def get_board_to_list(board: Board, old_one=True):
     ret_list = []
     for i in range(0, 64):
         ret_list.extend(get_piece_at(i, board))
+
+    # if old_one:
+    # board_status = [
+    #     1 if board.turn else -1,
+    #     1 if board.has_kingside_castling_rights(WHITE) else 0,
+    #     1 if board.has_queenside_castling_rights(WHITE) else 0,
+    #     -1 if board.has_kingside_castling_rights(BLACK) else 0,
+    #     -1 if board.has_queenside_castling_rights(BLACK) else 0
+    # ]
+    # else:
+    board_status = [
+        1 if board.turn else -1
+    ]
+
+    ret_list.extend(board_status)
 
     return ret_list
 
@@ -27,9 +42,8 @@ def get_piece_at(index, board: Board):
     return listica
 
 
-def get_board_state(chess_board: Board):
-    state = []
+def get_board_state(chess_board: Board, old_one=True):
     # positions
-    state = get_board_to_list(chess_board)
+    state = get_board_to_list(chess_board, old_one)
 
     return state

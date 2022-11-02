@@ -1,3 +1,4 @@
+import chess
 from chess import Board, pgn
 import math
 import time
@@ -7,13 +8,14 @@ import sys
 import numpy as np
 import mlflow
 from lite_model_wrapper import LiteModel
+from stockfish import Stockfish
 
 nodes_total = 0
 nodes_skipped = 0
 total_depth = 4
 position_dict = {}
 tt_hits = 0
-old_one=True
+old_one = True
 
 
 def get_function_for_board_eval(board: Board, model):
@@ -34,15 +36,25 @@ def alpha_beta_pruning(board: Board, depth, alpha, beta, maximizingPlayer, nn_mo
     global nodes_total, nodes_skipped, position_dict, tt_hits, old_one
     nodes_total += 1
 
-    if board.is_game_over():
-        winner = board.outcome().winner
+    # if board.is_game_over():
+    #     winner = board.outcome().winner
+    #     if winner is None:
+    #         return 0, None  # stalemate, draw
+    #
+    #     if winner is True:
+    #         return 1, None  # white won
+    #     else:
+    #         return -1, None  # black won
+    outcome = board.outcome(claim_draw=True)
+    if outcome:
+        winner = outcome.winner
         if winner is None:
             return 0, None  # stalemate, draw
 
         if winner is True:
-            return 1, None  # white won
+            return math.inf, None  # white won
         else:
-            return -1, None  # black won
+            return -math.inf, None  # black won
 
     recomm_move = None
     fen = board.fen()
@@ -74,7 +86,7 @@ def alpha_beta_pruning(board: Board, depth, alpha, beta, maximizingPlayer, nn_mo
 
     if maximizingPlayer:
         value = -math.inf
-        move = None
+        move = moves_deque[0]
         i = 0
         for m in moves_deque:
             i += 1
@@ -97,7 +109,7 @@ def alpha_beta_pruning(board: Board, depth, alpha, beta, maximizingPlayer, nn_mo
 
     else:
         value = math.inf
-        move = None
+        move = moves_deque[0]
         i = 0
         for m in moves_deque:
             i += 1
@@ -153,16 +165,15 @@ def get_next_move(board, model, depth):
     return end - start, alpha_beta_res[1]
 
 
-def duel(model1, model2):
+def duel_stockfish(model1, model_white=True, stockfish_rating=1700, start_pos=None, game_id=0):
     global old_one
-    print("DUEL")
+    print(f"\nDUEL {game_id}")
+    print(f"Model is white: {model_white}")
     orig_model_1 = mlflow.keras.load_model(model1)
-    orig_model_2 = mlflow.keras.load_model(model2)
 
     lmodel1 = LiteModel.from_keras_model(orig_model_1)
-    lmodel2 = LiteModel.from_keras_model(orig_model_2)
 
-    board = Board()
+    board = Board() if not start_pos else Board(start_pos)
 
     game = pgn.Game()
     game.setup(board)
@@ -170,24 +181,36 @@ def duel(model1, model2):
 
     move_num = 0
 
-    while not board.is_game_over():
+    model_plays = model_white
+
+    stockfish = Stockfish(
+        path="/home/igor/Documents/Chess_bot/stockfish/stockfish_15_linux_x64/stockfish_15_src/src/stockfish")
+    if start_pos:
+        stockfish.set_fen_position(start_pos)
+    stockfish.set_elo_rating(stockfish_rating)
+
+    while not board.outcome(claim_draw=True):
         move_num += 1
         copy_b = board.copy()
-        if board.turn:  # white
-            old_one = True
-            print("Model 1")
+        if model_plays:  # white
+            model_plays = not model_plays
+            print("Model")
             _, res = get_next_move(copy_b, lmodel1, 5)
             print()
         else:
-            old_one = False
-            print("Model 2")
-            _, res = get_next_move(copy_b, lmodel2, 5)
+            model_plays = not model_plays
+            print("Stockfish")
+            move = stockfish.get_best_move_time(5000)
+            res = chess.Move.from_uci(move)
+            print(move)
             print()
 
+
         board.push(res)
+        stockfish.make_moves_from_current_position([res.uci()])
 
         node = node.add_variation(res)
-        if move_num % 50 == 0:
+        if move_num % 25 == 0:
             print(game)
 
         print(board.fen())
@@ -196,83 +219,78 @@ def duel(model1, model2):
 
     game.headers["Result"] = board.result()
     print(game)
+    return board.outcome(claim_draw=True).winner
+
+
+def initiate_dueling(model_path):
+    mod_is_white = True
+    draws = 0
+    model_won = 0
+    stockfish_won = 0
+    for i in range(10):
+        try:
+            res = duel_stockfish(model_path, stockfish_rating=1600,
+                                 model_white=mod_is_white, game_id=i)
+        except Exception as e:
+            print(e)
+            print("Error with match, starting new game")
+            continue
+
+        if res is None:
+            draws += 1
+        elif res and mod_is_white:
+            model_won += 1
+        elif not res and not mod_is_white:
+            model_won += 1
+        else:
+            stockfish_won += 1
+
+        mod_is_white = not mod_is_white
+        print(f"Score: mod wins {model_won}, stockfish wins {stockfish_won}, draws {draws}")
 
 
 if __name__ == '__main__':
-    # import os
-    #
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-    orig_model = mlflow.keras.load_model("runs:/ebd176887d9d4a8f9d461651069602fd/model")
-    orig_model.summary()
-    # orig_model = mlflow.keras.load_model("runs:/95630a707a764c89ab677679eb41ced2/logged_model")
-    # orig_model.summary()
-
-    # features = get_board_state(Board("rnbqkbnr/ppp2ppp/8/3Bp3/8/6P1/PPPPPP1P/RNBQK1NR b KQkq - 0 3"))
-    #
-    # lmodel = LiteModel.from_keras_model(orig_model)
+    # import time
+    # import chess.polyglot
+    # board = Board()
     # start = time.time()
-    # pred = lmodel.predict_single(features)
+    # #board.fen()
+    # prr = chess.polyglot.zobrist_hash(board)
     # end = time.time()
-    # print("Pred: " + str(pred))
-    # print(f"Convert time: {end - start}")
-    #
-    # quit()
-
-    # fen = sys.argv[1]
-    # depth = int(sys.argv[2]) if len(sys.argv) >= 3 else None # if depth is passed as argument, else its default (4)
-
-    # features = get_board_state(Board("rn1qkbnr/ppp2ppp/4b3/3pp3/8/5NP1/PPPPPP1P/RNBQK2R w KQkq - 2 5"))
-    # features_reshaped = tf.reshape(features, [1, 768])
-    # lmodel = LiteModel.from_keras_model(model)
-    # start_1 = time.time()
-    # pred_1 = lmodel.predict_single(features)
-    # end_1 = time.time()
-    # print("Pred: " + str(pred_1))
-    # print(f"Convert time: {end_1 - start_1}")
-    #
-    # start = time.time()
-    # pred = model(features_reshaped)
-    # end = time.time()
-    # print("Pred: " + str(pred))
-    # print(f"Convert time: {end - start}")
-    # quit()
-
-    lmodel = LiteModel.from_keras_model(orig_model)
-
-    # while True:
-    #     print("\nInput fen: ")
-    #     input_fen = input()
-    #     features = get_board_state(Board(input_fen))
-    #     pred_1 = model.predict_single(features)
-    #     print("Pred: " + str(pred_1))
-    # quit()
-
-    # duel("runs:/15ff8fdc93cd44d888ca4069d4dc73e9/model", "runs:/ebd176887d9d4a8f9d461651069602fd/model")
-
-    calc_time = 0
-    total_moves = 0
+    # print(f"{(end-start)}")
+    # old_one = False
+    # print("rl, 4000, 1300, 1000")
+    # initiate_dueling("runs:/8526f722c5624b979db3d8b15bbc5811/logged_model")
+    # print("no rl, 4000, 1300, 1000")
+    # initiate_dueling("runs:/ebd176887d9d4a8f9d461651069602fd/logged_model")
 
     old_one = True
+    print("rl, 4k, 2k, 2k")
+    initiate_dueling("runs:/207731ac18d645cb9bc4a4564b717028/logged_model")
+    print("no 4k, 2k, 2k")
+    initiate_dueling("runs:/15ff8fdc93cd44d888ca4069d4dc73e9/logged_model")
 
-    while True:
-        print("\nInput fen: ")
-        input_fen = input()
-        if input_fen == "x":
-            break
-        starting_board = Board(input_fen)
-        time_to_move = get_next_move(starting_board, lmodel, 5)
-        position_dict.clear()
-        calc_time += time_to_move[0]
-        total_moves += 1
-
-    print("Average time: " + str(calc_time/total_moves))
-    print("Total moves: " + str(total_moves))
+    # mod_is_white = True
+    # draws = 0
+    # model_won = 0
+    # stockfish_won = 0
+    # for i in range(10):
+    #     try:
+    #         res = duel_stockfish("runs:/15ff8fdc93cd44d888ca4069d4dc73e9/model", stockfish_rating=1700,
+    #                              model_white=mod_is_white, game_id=i)
+    #     except Exception as e:
+    #         print(e)
+    #         print("Error with match, starting new game")
+    #         continue
     #
-    # # fen = sys.argv[1]
-    # # depth = int(sys.argv[2]) if len(sys.argv) >= 3 else None # if depth is passed as argument, else its default (4)
+    #     if res is None:
+    #         draws += 1
+    #     elif res and mod_is_white:
+    #         model_won += 1
+    #     elif not res and not mod_is_white:
+    #         model_won += 1
+    #     else:
+    #         stockfish_won += 1
     #
-    # fen = "rnbqkbnr/pp4pp/2p2p2/3pN3/4p3/2N5/PPPPPPPP/R1BQKB1R w KQkq - 0 6"
-    # depth = 5
-    #
-    # starting_board = Board(fen)
-    # get_next_move(starting_board, model, depth)
+    #     mod_is_white = not mod_is_white
+    #     print(f"Score: mod wins {model_won}, stockfish wins {stockfish_won}, draws {draws}")

@@ -1,30 +1,82 @@
 from tensorflow.keras.models import model_from_json
-from lite_model_wrapper import LiteModel
+
 from board_state_extractor import get_board_state
 import math
 import time
 from collections import deque
 import numpy as np
 import tensorflow as tf
-import chess
+from chess import *
 import mlflow
 
+nodes_total = 0
+nodes_skipped = 0
+total_depth = 4
 position_dict = {}  # lowerbound, upperbound, move, depth; LOWERBOUND, UPPERBOUND (0, 1)
 
 
-def get_function_for_board_eval(board: chess.Board, model):
+class LiteModel:
+
+    @classmethod
+    def from_file(cls, model_path):
+        return LiteModel(tf.lite.Interpreter(model_path=model_path))
+
+    @classmethod
+    def from_keras_model(cls, kmodel):
+        converter = tf.lite.TFLiteConverter.from_keras_model(kmodel)
+        tflite_model = converter.convert()
+        return LiteModel(tf.lite.Interpreter(model_content=tflite_model))
+
+    def __init__(self, interpreter):
+        self.interpreter = interpreter
+        self.interpreter.allocate_tensors()
+        input_det = self.interpreter.get_input_details()[0]
+        output_det = self.interpreter.get_output_details()[0]
+        self.input_index = input_det["index"]
+        self.output_index = output_det["index"]
+        self.input_shape = input_det["shape"]
+        self.output_shape = output_det["shape"]
+        self.input_dtype = input_det["dtype"]
+        self.output_dtype = output_det["dtype"]
+
+    def predict(self, inp):
+        inp = inp.astype(self.input_dtype)
+        count = inp.shape[0]
+        out = np.zeros((count, self.output_shape[1]), dtype=self.output_dtype)
+        for i in range(count):
+            self.interpreter.set_tensor(self.input_index, inp[i:i + 1])
+            self.interpreter.invoke()
+            out[i] = self.interpreter.get_tensor(self.output_index)[0]
+        return out
+
+    def predict_single(self, inp):
+        """ Like predict(), but only for a single record. The input data can be a Python list. """
+        inp = np.array([inp], dtype=self.input_dtype)
+        self.interpreter.set_tensor(self.input_index, inp)
+        self.interpreter.invoke()
+        out = self.interpreter.get_tensor(self.output_index)
+        return out[0]
+
+
+# def add finisher
+
+def get_function_for_board_eval(board: Board, model):
     def funkc(move):
         copy_b = board.copy()
         copy_b.push(move)
 
+        #eval_val = float(model(tf.reshape(extract_feautre(copy_b), [1, 768])))
+        #return eval_val
         return model.predict_single(get_board_state(copy_b))[0]
 
     return funkc
 
 
-def alpha_beta_with_memory(board: chess.Board, alpha, beta, d, maximizing_player,
+def alpha_beta_with_memory(board: Board, alpha, beta, d, maximizing_player,
                            nn_model, moves=None, move_passed=None):
-    global position_dict
+    global position_dict, nodes_total
+
+    nodes_total += 1
 
     move = None
 
@@ -46,12 +98,21 @@ def alpha_beta_with_memory(board: chess.Board, alpha, beta, d, maximizing_player
 
     if d == 0:
         features = get_board_state(board)
+        # pred = nn_model(tf.reshape(features, [1, 768]))
+        # g = float(pred)
         g = nn_model.predict_single(features)[0]
         move = move_passed
 
     elif maximizing_player:
         g = -math.inf
         a = alpha
+
+        # moves_deque = deque()
+        # for m in board.legal_moves:
+        #     if board.is_capture(m) or len(board.attacks(m.to_square)) != 0:
+        #         moves_deque.appendleft(m)
+        #     else:
+        #         moves_deque.append(m)
         if moves is None:
             moves_deque = deque()
             for m in board.legal_moves:
@@ -78,6 +139,13 @@ def alpha_beta_with_memory(board: chess.Board, alpha, beta, d, maximizing_player
     else:
         g = math.inf
         b = beta
+
+        # moves_deque = deque()
+        # for m in board.legal_moves:
+        #     if board.is_capture(m) or len(board.attacks(m.to_square)) != 0:
+        #         moves_deque.appendleft(m)
+        #     else:
+        #         moves_deque.append(m)
         if moves is None:
             moves_deque = deque()
             for m in board.legal_moves:
@@ -106,21 +174,31 @@ def alpha_beta_with_memory(board: chess.Board, alpha, beta, d, maximizing_player
     if g <= alpha:
         node = position_dict[board.fen()]
         position_dict[board.fen()] = [node[0], g, move, d]
+        # position_dict[board.fen()][1] = g
+        # position_dict[board.fen()][2] = move
+        # position_dict[board.fen()][3] = d
     if alpha < g < beta:
         position_dict[board.fen()] = [g, g, move, d]
     if g >= beta:
         node = position_dict[board.fen()]
         position_dict[board.fen()] = [g, node[1], move, d]
+        # position_dict[board.fen()][0] = g
+        # position_dict[board.fen()][2] = move
+        # position_dict[board.fen()][3] = d
 
     return g, move
 
 
-def mtdf(f, d, board, nn_model, moves):
+def mtdf(f, d, board, nn_model):
     g = f
     upperbound = math.inf
     lowerbound = -math.inf
 
     move = None
+
+    moves = list(board.legal_moves)
+    moves = sorted(moves, key=get_function_for_board_eval(board, model),
+                   reverse=board.turn)
 
     while lowerbound < upperbound:
         if g == lowerbound:
@@ -136,44 +214,33 @@ def mtdf(f, d, board, nn_model, moves):
     return g, move
 
 
-def get_next_move(board, model_orig, model_lite, depth):
-    global position_dict
-    board_copy = board.copy()
+def get_next_move(board, model, depth):
+    global nodes_total, nodes_skipped, total_depth, position_dict
+    print("\nStarted calculating")
+    start = time.time()
 
-    recom_moves = list(board.legal_moves)
-    recom_moves = sorted(recom_moves, key=get_function_for_board_eval(board, model_lite), reverse=board.turn)
-
-    firstguess = model_lite.predict_single(get_board_state(board))[0]
-    moves = []
+    #firstguess = 0.0
+    #firstguess = float(model(tf.reshape(extract_feautre(board), [1, 768])))
+    firstguess = model.predict_single(get_board_state(board))[0]
+    move = None
     for d in range(1, depth):
-        firstguess, m = mtdf(firstguess, d, board, model_lite, recom_moves)
-        moves.append(m)
+        firstguess, m = mtdf(firstguess, d, board, model)
+        move = m
+    #firstguess, move = mtdf(firstguess, 4, board, model)
 
-    prev_move = None
-    new_move = moves[-1]
-    while True:
-        if not board_copy.is_legal(new_move):  # to znaci da je vraceni potez onaj na samom kraju
-            # msm da se da ispraviti ali ne u 3 ujutro kad je ovo kucano :)
-            break
-
-        board_copy.push(new_move)
-        new_move = position_dict[board_copy.fen()][2]  # move
-        if prev_move is None:
-            prev_move = new_move
-        else:
-            if prev_move == new_move:
-                break
-
-            prev_move = new_move
-
-    position_dict.clear()
-    features = get_board_state(board_copy)
-    return model_orig(tf.reshape(features, [1, len(features)])), moves[-1]
+    end = time.time()
+    print(f"Positions: {len(position_dict)}")
+    print(f"Move heuristics: {firstguess}")
+    print("Move (UCI format): " + move.uci())
+    print(f"Solve time: {end - start}")
+    print(f"Nodes total: {nodes_total}")
 
 
 if __name__ == '__main__':
     #model = load_model("working_model/model_chess_ai.json",
     #                    "working_model/model_chess_ai.h5")
+    import os
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
     # json_file = open('working_model/model_chess_ai.json', 'r')
     # loaded_model_json = json_file.read()
@@ -181,12 +248,10 @@ if __name__ == '__main__':
     # loaded_model = model_from_json(loaded_model_json)
     # loaded_model.load_weights("working_model/model_chess_ai.h5")
     # model = loaded_model
-    #import os
-
-    #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
-    #model = mlflow.keras.load_model("runs:/96192e770e454e87a4d9bafcc2f6ab4c/model")
-    #model.summary()
+    model = mlflow.keras.load_model("runs:/15ff8fdc93cd44d888ca4069d4dc73e9/model")
+    tf.saved_model.save(model, "model_saved")
+    quit()
+    model.summary()
 
     # features = get_board_state(Board("rnbqkbnr/ppp2ppp/8/3Bp3/8/6P1/PPPPPP1P/RNBQK1NR b KQkq - 0 3"))
     #
@@ -218,27 +283,21 @@ if __name__ == '__main__':
     # print(f"Convert time: {end - start}")
     #quit()
 
-    #lmodel = LiteModel.from_keras_model(model)
-    # while True:
-    #     print("\nInput fen: ")
-    #     input_fen = input()
-    #     features = get_board_state(Board(input_fen))
-    #     pred_1 = model.predict_single(features)
-    #     print("Pred: " + str(pred_1))
-    # quit()
+    model = LiteModel.from_keras_model(model)
+    while True:
+        print("\nInput fen: ")
+        input_fen = input()
+        features = get_board_state(Board(input_fen))
+        pred_1 = model.predict_single(features)
+        print("Pred: " + str(pred_1))
+    quit()
 
-    model = mlflow.keras.load_model("runs:/15ff8fdc93cd44d888ca4069d4dc73e9/model")
-    model.summary()
-    lmodel = LiteModel.from_keras_model(model)
-    starting_board = chess.Board("2r3k1/1b1r1p2/pQp3p1/3R2qp/8/4RP1B/PPP3PP/6K1 b q - 0 1")
-    res = get_next_move(starting_board, model, lmodel, 5)
-
-    # while True:
-    #     print("\nInput fen: ")
-    #     input_fen = input()
-    #     starting_board = chess.Board(input_fen)
-    #     res = get_next_move(starting_board, model, lmodel, 5)
-    #     print("oi")
+    while True:
+        print("\nInput fen: ")
+        input_fen = input()
+        starting_board = Board(input_fen)
+        get_next_move(starting_board, model, 5)
+        position_dict.clear()
 
     # todo
     # umesto depth probaj da se pamti remaining depth, da vidimo sta ce bolje da radi
