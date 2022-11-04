@@ -9,11 +9,12 @@ import mlflow
 from mlflow import log_text, log_param
 from lite_model_wrapper import LiteModel
 from board_state_extractor import get_board_state
+import argparse
 
 
-def td_alpha_full(model_orig, model_lite, alpha=1.0, lambda_in_sum=0.7,
+def td_alpha_full(model_orig, model_lite, train_dataset_path, val_dataset_path, alpha=1.0, lambda_in_sum=0.7,
                   iterations=1, num_start_pos=5, num_of_moves_search=2, depth=5):
-    dataset_train, dataset_val = get_dataset_for_rl_csv()
+    dataset_train, dataset_val = get_dataset_for_rl_csv(train_dataset_path, val_dataset_path)
     for s in range(iterations):
         print("STEP: " + str(s))
         batch_of_pos = dataset_train.take(num_start_pos)
@@ -88,7 +89,13 @@ def td_alpha_full(model_orig, model_lite, alpha=1.0, lambda_in_sum=0.7,
 
 
 if __name__ == "__main__":
-    loaded_m = tf.keras.models.load_model("nn_model")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_path', required=True, type=str)
+    parser.add_argument('--train_dataset_path', required=True, type=str)
+    parser.add_argument('--val_dataset_path', required=True, type=str)
+    args = parser.parse_args()
+
+    loaded_m = tf.keras.models.load_model(args.model_path)
     loaded_m.summary()
 
     lmodel = LiteModel.from_keras_model(loaded_m)
@@ -102,7 +109,10 @@ if __name__ == "__main__":
     a = 0.00001
 
     with mlflow.start_run():
-        td_alpha_full(loaded_m, lmodel, iterations=steps, num_start_pos=num_of_start_pos, depth=search_depth,
+        td_alpha_full(loaded_m, lmodel,
+                      train_dataset_path=args.train_dataset_path,
+                      val_dataset_path=args.val_dataset_path,
+                      iterations=steps, num_start_pos=num_of_start_pos, depth=search_depth,
                       num_of_moves_search=num_of_moves, alpha=a, lambda_in_sum=lam)
 
         mlflow.keras.log_model(loaded_m, "logged_model")

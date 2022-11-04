@@ -1,11 +1,10 @@
 from tensorflow.keras.layers import Dense, Dropout, Add, ReLU, Input, BatchNormalization
-from tensorflow.keras import regularizers
 import tensorflow as tf
-from dataset import get_dataset_sql, get_dataset_csv, get_test_dataset_csv
-import os
+from dataset import get_dataset_csv, get_test_dataset_csv
 import mlflow
 from loguru import logger
 from mlflow import log_param, log_text
+import argparse
 
 
 def get_nn_model():
@@ -21,7 +20,7 @@ def get_nn_model():
     return model
 
 
-def train(mlrun_id=None, epoch_num=8, epoch_from_which_to_start=0):
+def train(dataset_train_path, dataset_val_path, batch_size=256, epoch_num=8):
     logger.info("Started training")
 
     early_stopping = tf.keras.callbacks.EarlyStopping(
@@ -29,23 +28,16 @@ def train(mlrun_id=None, epoch_num=8, epoch_from_which_to_start=0):
     )
 
     with mlflow.start_run():
-        if mlrun_id:
-            model = mlflow.keras.load_model("runs:/" + mlrun_id + "/model")
-            print("Continuing run, run id: " + mlrun_id)
-        else:
-            model = get_nn_model()
-            model.compile(loss="mean_squared_error", optimizer="adam", metrics=["mse"])
+        model = get_nn_model()
+        model.compile(loss="mean_squared_error", optimizer="adam", metrics=["mse"])
         model.summary()
 
-        batch_size = 256
-
-        dataset_train, dataset_val = get_dataset_csv(bs=batch_size)
+        dataset_train, dataset_val = get_dataset_csv(dataset_train_path, dataset_val_path, bs=batch_size)
 
         mlflow.tensorflow.autolog(log_models=True)
         model.fit(x=dataset_train,
                   validation_data=dataset_val,
                   epochs=epoch_num,
-                  initial_epoch=epoch_from_which_to_start,
                   callbacks=[early_stopping])
 
         mlflow.keras.log_model(model, "logged_model")
@@ -67,20 +59,23 @@ def train(mlrun_id=None, epoch_num=8, epoch_from_which_to_start=0):
     logger.info("Finished training")
 
 
-def test_network(mlrun_id):
-    print("model id: " + mlrun_id)
-    model = mlflow.keras.load_model("runs:/" + mlrun_id + "/logged_model")
+def test_network(model_path, dataset_test_path):
+    model = tf.keras.models.load_model(model_path)
 
-    test_dataset = get_test_dataset_csv()
+    test_dataset = get_test_dataset_csv(dataset_test_path)
 
     results = model.evaluate(test_dataset)
     print("test loss, test acc:", results)
 
 
 if __name__ == "__main__":
-    # sudo ldconfig /usr/lib/cuda/lib64
-    # os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+    parser = argparse.ArgumentParser()
 
-    train()
+    parser.add_argument('--train_dataset_path', required=True, type=str)
+    parser.add_argument('--val_dataset_path', required=True, type=str)
+
+    args = parser.parse_args()
+
+    train(args.train_dataset_path, args.val_dataset_path)
 
 

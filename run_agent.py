@@ -2,6 +2,7 @@ from alpha_beta_search_tt_id import get_next_move_user_info
 from lite_model_wrapper import LiteModel
 import tensorflow as tf
 from chess import Board
+import argparse
 
 
 def run(model_path):
@@ -27,4 +28,8 @@ def run(model_path):
 
 
 if __name__ == '__main__':
-    run("nn_model")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_path', required=True, type=str)
+    args = parser.parse_args()
+
+    run(args.model_path)
