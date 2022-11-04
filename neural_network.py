@@ -151,6 +151,9 @@ if __name__ == "__main__":
     # a233306bf71440388a1e81194e3d3141
 
     # todo kao probaj batch size menjati xd
+    # test_network("207731ac18d645cb9bc4a4564b717028") # 0.06813859939575195 peak rl
+    # test_network("15ff8fdc93cd44d888ca4069d4dc73e9")  # 0.0681227520108223 peak nn
+
     train()
     # import os
     #

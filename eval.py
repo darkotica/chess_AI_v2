@@ -248,8 +248,16 @@ if __name__ == '__main__':
     # loaded_model = model_from_json(loaded_model_json)
     # loaded_model.load_weights("working_model/model_chess_ai.h5")
     # model = loaded_model
-    model = mlflow.keras.load_model("runs:/15ff8fdc93cd44d888ca4069d4dc73e9/model")
-    tf.saved_model.save(model, "model_saved")
+
+    # model = mlflow.keras.load_model("runs:/15ff8fdc93cd44d888ca4069d4dc73e9/model")
+    # tf.saved_model.save(model, "nn_model")
+    # model = mlflow.keras.load_model("runs:/207731ac18d645cb9bc4a4564b717028/logged_model")
+    # tf.saved_model.save(model, "rl_model")
+
+    model = tf.keras.models.load_model("nn_model")
+    model.summary()
+    model = tf.keras.models.load_model("rl_model")
+    model.summary()
     quit()
     model.summary()
 

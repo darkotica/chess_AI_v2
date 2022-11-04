@@ -133,4 +133,7 @@ dmypy.json
 mlruns/
 model_saved/
 
+nn_model/
+rl_model/
+
 working_model/

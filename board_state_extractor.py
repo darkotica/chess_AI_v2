@@ -8,17 +8,17 @@ def get_board_to_list(board: Board, old_one=True):
         ret_list.extend(get_piece_at(i, board))
 
     # if old_one:
-    # board_status = [
-    #     1 if board.turn else -1,
-    #     1 if board.has_kingside_castling_rights(WHITE) else 0,
-    #     1 if board.has_queenside_castling_rights(WHITE) else 0,
-    #     -1 if board.has_kingside_castling_rights(BLACK) else 0,
-    #     -1 if board.has_queenside_castling_rights(BLACK) else 0
-    # ]
-    # else:
     board_status = [
-        1 if board.turn else -1
+        1 if board.turn else -1,
+        1 if board.has_kingside_castling_rights(WHITE) else 0,
+        1 if board.has_queenside_castling_rights(WHITE) else 0,
+        -1 if board.has_kingside_castling_rights(BLACK) else 0,
+        -1 if board.has_queenside_castling_rights(BLACK) else 0
     ]
+    # else:
+    # board_status = [
+    #     1 if board.turn else -1
+    # ]
 
     ret_list.extend(board_status)
 
