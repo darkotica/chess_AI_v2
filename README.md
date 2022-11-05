@@ -71,12 +71,13 @@ python reinforcement_learning.py --model_path "model-path" --train_dataset_path 
 ```
 
 ### Runing the agent
-- In order to run the agent, you will first need to unzip the contents of one of the files located at <em>beaver_model</em> (unzip <em>beaver_nn.zip</em if you want to use supervised version of the agent, or <em>beaver_rl.zip</em> in case if you want to use the agent trained using RL), in which neural network's model and weights are saved. 
-- After you start the agent, you will be asked to input position in FEN notation, for which the agent will find the best move.
-
-### Output
+- In order to run the agent, you will first need to unzip the contents of one of the files located at <em>beaver_model</em> (unzip <em>beaver_nn.zip</em> if you want to use supervised version of the agent, or <em>beaver_rl.zip</em> in case you want to use the agent trained using RL), in which neural network's model and weights are saved. 
+- After you start the agent, you will be asked to input position in FEN notation, for which the agent will find the best move. <br>
+![input](images/input.png)
 - After the application is done with searching for the best move, you should get an output similar to this: <br><br>
- ![output](https://user-images.githubusercontent.com/58399701/165513086-d4316f77-05c8-420a-bbfe-12fa8f8be4ec.png)
-- Move heuristics represents the value of position after making the recommended move (closer to 1 is winning for white, closer to -1 is winning for black, while 0 is drawn position).
-- Move represents a recommended move in UCI format.
-- Solve time represents number of seconds in which the application has found the recommended move.
+ ![output](images/output.png)
+  - Positions calculated is the number of positions that have been searched.
+  - Repeating positions is the number of positions that appeared at multiple places during search.
+  - Best move found is a move recommended by the engine in UCI format
+  - Move heuristics represents the value of position after making the recommended move (closer to 1 is winning for white, closer to -1 is winning for black, while 0 is drawn position).
+  - Solve time represents number of seconds in which the application has found the recommended move.
